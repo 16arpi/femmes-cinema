@@ -20,7 +20,7 @@ EXPORT_HEADER = ["parent_notice", "ark_periodique", "ark", "numero", "gallica_ur
     ]
 )
 def scrape(cli_args, defer, loading_bar: LoadingBar, *args, **kwargs):
-    with HTTPThreadPoolExecutor(retry=True) as executor:
+    with HTTPThreadPoolExecutor(retry=True, retryer_kwargs={"max_attempts": 5, "retry_on_timeout": True}) as executor:
         with Enricher(EXPORT_HEADER) as enricher, loading_bar.step():
 
             # Préparation des URLs pour les périodiques
@@ -45,10 +45,11 @@ def scrape(cli_args, defer, loading_bar: LoadingBar, *args, **kwargs):
             urls_numeros = {}
             for res in executor.request(urls_periodique.keys(), throttle=0.7):
 
+                loading_bar.inc_stat("queued", count=-1)
                 loading_bar.inc_stat("done")
                 p_data = urls_periodique[res.url]
 
-                if res.response.status != 200:
+                if not res.response or res.response.status != 200:
                     log("Error", p_data["parent_notice"], res.url, res.error)
                     continue
 
@@ -65,10 +66,13 @@ def scrape(cli_args, defer, loading_bar: LoadingBar, *args, **kwargs):
 
             # Récupération des numéros
             for res in executor.request(urls_numeros.keys(), throttle=0.7):
+
+                loading_bar.inc_stat("queued", count=-1)
                 loading_bar.inc_stat("done")
+
                 p_data = urls_numeros[res.url]
 
-                if res.response.status != 200:
+                if not res.response or res.response.status != 200:
                     log("Error", p_data["parent_notice"], res.url, res.error)
                     continue
 
